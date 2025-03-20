@@ -3,11 +3,10 @@ package one.oktw.mixin.bungee;
 import com.google.gson.Gson;
 import com.mojang.authlib.properties.Property;
 import net.minecraft.network.ClientConnection;
-import net.minecraft.network.NetworkState;
+import net.minecraft.network.packet.c2s.handshake.ConnectionIntent;
 import net.minecraft.network.packet.c2s.handshake.HandshakeC2SPacket;
 import net.minecraft.network.packet.s2c.login.LoginDisconnectS2CPacket;
 import net.minecraft.server.network.ServerHandshakeNetworkHandler;
-import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import one.oktw.Util;
 import one.oktw.interfaces.BungeeClientConnection;
@@ -32,11 +31,9 @@ public class ServerHandshakeNetworkHandlerMixin {
     @Final
     private ClientConnection connection;
 
-
-    @Inject(method = "onHandshake", at = @At(value = "INVOKE", target =
-            "Lnet/minecraft/server/network/ServerLoginNetworkHandler;<init>(Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/network/ClientConnection;)V"))
+    @Inject(method = "onHandshake(Lnet/minecraft/network/packet/c2s/handshake/HandshakeC2SPacket;)V", at = @At(value = "HEAD"), cancellable = true)
     private void onProcessHandshakeStart(HandshakeC2SPacket packet, CallbackInfo ci) {
-        if (NetworkState.LOGIN.equals(packet.getNewNetworkState())) {
+        if (packet.intendedState() == ConnectionIntent.LOGIN) {
             String[] split = packet.address().split("\00");
             if (split.length == 3 || split.length == 4) {
                 // override/insert forwarded IP into connection:
@@ -56,8 +53,9 @@ public class ServerHandshakeNetworkHandlerMixin {
                 Text disconnectMessage = Text.of(
                         "Bypassing proxy not allowed! If you wish to use IP forwarding, " +
                                 "please enable it in your BungeeCord config as well!");
-                connection.send(new LoginDisconnectS2CPacket(disconnectMessage));
+                // connection.send(new LoginDisconnectS2CPacket(disconnectMessage)); Broken, unsure how to fix
                 connection.disconnect(disconnectMessage);
+                ci.cancel();
             }
         }
     }
